@@ -1,159 +1,138 @@
-# Agent-Pair-Template — Implementierungsplan
+# claude-dev-team — Instantiation Plan
 
-> Dieser Plan beschreibt wie ein konkretes Agent-Paar aus diesem Template instanziiert wird.
-> Referenz-Implementierung: `microcontroller-agent` (PO) + nested `coding-agent`.
-> Diagram: siehe `diagram.md`.
+> How to create a concrete team from this template.
+> Reference: `microcontroller-agent` (PO) + `developer`.
+> See `diagram.md` for the architecture picture.
 
 ---
 
-## Architektur-Überblick
+## Overview
 
-Das Template implementiert ein **zweiköpfiges Agent-Paar**:
-
-| Rolle | Session | Repo-Pfad | Mesh-Sichtbar |
+| Role | tmux session | Repo path | Mesh-visible |
 |---|---|---|---|
-| **PO-Agent** | `<po-name>` | `~/repos/<po-name>/` | Ja — einziger Ansprechpartner |
-| **Coding-Agent** | `<po-name>-coding-agent` | `~/repos/<po-name>/coding-agent/` | Nein — intern |
+| **Product Owner** | `<team>-po` | `~/repos/<team>/` | Yes — sole entry point |
+| **Developer** | `<team>-developer` | `~/repos/<team>/developer/` | No — internal |
 
-Der PO ist der **einzige Mesh-Entry-Point**. Extern spricht niemand den coding-agent direkt an.
-Der coding-agent ist ein *Werkzeug* des PO, nicht ein eigenständiger Mesh-Teilnehmer.
+The PO is the **only external contact**. Nobody talks to the Developer directly.
 
 ---
 
-## Instanziierungs-Schritte (für den ausführenden Agent)
+## Instantiation steps
 
-### Phase 1 — Repo anlegen
+### Phase 1 — Repo setup
 
 ```bash
-# 1. .env befüllen (alle Slugs + Modelle + Pfade)
+# Clone or copy the template
+git clone https://github.com/NG-Bullseye/claude-dev-team ~/repos/<team>
+cd ~/repos/<team>
 cp .env.example .env
-$EDITOR .env
-
-# 2. Repo mit richtigem Namen klonen/kopieren
-source .env
-TARGET="$HOME/repos/$PO_AGENT_NAME"
-cp -r ~/repos/agent-pair-template "$TARGET"
-cd "$TARGET" && git init -q
-
-# 3. coding-agent Subdir initialisieren
-mkdir -p coding-agent/.claude
 ```
 
-### Phase 2 — CLAUDE.md-Dateien befüllen
+Set in `.env`:
+- `TEAM_NAME=<team>`  — the slug used for sessions, cache paths, and symlinks
+- `PO_MODEL` / `DEVELOPER_MODEL` — sonnet for most tasks
+- `MESH_ENABLED=true` if connecting to an agent-mesh network
 
-**PO-Agent `CLAUDE.md`** (`~/repos/<po-name>/CLAUDE.md`):
-- `[PO_AGENT_NAME]` → echter Slug
-- `[DOMAIN]` → Domäne (z.B. „Mikrocontroller/ESPHome-Displays")
-- Session-Init-Monitore korrekt eintragen
+### Phase 2 — CLAUDE.md placeholders
 
-**Coding-Agent `CLAUDE.md`** (`~/repos/<po-name>/coding-agent/CLAUDE.md`):
-- `[CODING_AGENT_NAME]` → `coding-agent`
-- `[PO_AGENT_NAME]` → PO-Slug eintragen
+**`CLAUDE.md`** (Product Owner):
+- Replace `[TEAM_NAME]` with your slug
+- Replace `[DOMAIN]` with the domain description
 
-### Phase 3 — settings.json korrekt setzen
+**`developer/CLAUDE.md`** (Developer):
+- Replace `[TEAM_NAME]` with your slug
 
-Für PO-Agent (`.claude/settings.json`):
-```json
-{
-  "permissions": { "defaultMode": "bypassPermissions" },
-  "hooks": {
-    "UserPromptSubmit": [
-      { "hooks": [ { "type": "command", "command": "bash ~/repos/<po-name>/bin/ensure-monitors.sh" } ] }
-    ]
-  }
-}
+### Phase 3 — Domain docs
+
+Drop all domain-relevant documentation into `docs/`:
+- Templates, design guides, style guides
+- Known pitfalls from previous attempts
+- Reference repos / example builds
+
+The PO reads these before every task. The quality of the PO's planning
+is directly proportional to what lives in `docs/`.
+
+### Phase 4 — Install
+
+```bash
+bash scripts/install.sh      # creates ~/.local/bin/<team>-po and <team>-developer
+bash bin/start-all.sh        # starts both sessions detached
 ```
 
-Für Coding-Agent (`coding-agent/.claude/settings.json`):
-```json
-{
-  "permissions": { "defaultMode": "bypassPermissions" }
-}
+### Phase 5 — agent-mesh (optional)
+
+```bash
+# Install transport layer
+git clone https://github.com/NG-Bullseye/agent-mesh ~/repos/agent-mesh
+cd ~/repos/agent-mesh && pip install -e . && docker-compose up -d
+
+# In .env: MESH_ENABLED=true
+# Restart: bash bin/start-all.sh
+
+# Verify
+agent-mesh who               # should list <team>-po
+agent-mesh ping <team>-po    # should pong
 ```
 
-### Phase 4 — Launcher + Symlinks
+### Phase 6 — Verify
 
 ```bash
 source .env
-chmod +x bin/po-agentctl bin/coding-agentctl bin/start-all.sh bin/ensure-monitors.sh
-
-# Symlinks — Namen aus .env
-ln -sf "$HOME/repos/$PO_AGENT_NAME/bin/po-agentctl" "$HOME/.local/bin/$PO_AGENT_NAME"
-ln -sf "$HOME/repos/$PO_AGENT_NAME/bin/coding-agentctl" "$HOME/.local/bin/$PO_AGENT_NAME-coding-agent"
-```
-
-### Phase 5 — Domänen-Docs einpflegen
-
-Alle domänenspezifischen Dokumentationen in `docs/` ablegen:
-- Templates, Design-Guides, Beispiele
-- Links zu Vorbilder-Repos
-- Known-Pitfalls (besonders wichtig: was beim letzten Versuch falsch war)
-
-### Phase 6 — coord-Integration (optional, nur wenn Mesh-Routing nötig)
-
-1. `~/.local/bin/coord` editieren: `VALID_AGENTS` um `<po-name>` erweitern (Zeile ~65)
-2. `self_alias`-Mapping ergänzen (~Zeile 432)
-3. `coord monitor` daemon respawnen
-4. `COORD_ENABLED=true` in `.env` setzen
-5. `ensure-monitors.sh` aktiviert dann automatisch den coord-Monitor
-
-### Phase 7 — Verify
-
-```bash
-source .env
-bin/start-all.sh   # startet beide Sessions detached
-
-# PO-Session verifizieren
-tmux has-session -t "$PO_AGENT_NAME" && echo "PO läuft"
-sleep 3 && ls ~/.cache/$PO_AGENT_NAME/monitors/  # heartbeat.lock + heartbeat.log
-
-# Coding-Agent-Session verifizieren
-tmux has-session -t "$PO_AGENT_NAME-coding-agent" && echo "Coding läuft"
+tmux has-session -t "$TEAM_NAME-po" && echo "PO running"
+tmux has-session -t "$TEAM_NAME-developer" && echo "Developer running"
+sleep 3
+ls ~/.cache/$TEAM_NAME-po/monitors/   # heartbeat.lock + heartbeat.log present?
+flock -n ~/.cache/$TEAM_NAME-po/monitors/heartbeat.lock true \
+  && echo "WARN: monitor not running" || echo "OK: heartbeat monitor running"
 ```
 
 ---
 
-## Kommunikations-Muster
+## Communication patterns
 
-### PO → Coding-Agent (Aufgaben-Delegation)
-
-```bash
-# Option A: tmux send-keys (einfachste Form, kein coord nötig)
-tmux send-keys -t "${PO_AGENT_NAME}-coding-agent" "Implementiere X: [klare Beschreibung]" Enter
-
-# Option B: Shared file / queue (für komplexere Specs)
-echo "TASK: ..." > ~/repos/$PO_AGENT_NAME/.task-queue
-```
-
-### Coding-Agent → PO (Fertig-Meldung)
+### External → PO
 
 ```bash
-# Coding-Agent schreibt in ein shared result file
-echo "DONE: X implementiert, verifiziert via Y" > ~/repos/$PO_AGENT_NAME/.task-result
-# PO-Agent hat einen Monitor auf dieses File (oder polling via harness-Monitor)
+# Via mesh (MESH_ENABLED=true)
+agent-mesh send <team>-po "Task: build feature X"
+agent-mesh request <team>-po "what is the status?" --from my-agent
+
+# Via tmux (always works)
+tmux send-keys -t <team>-po "Task: build feature X" Enter
 ```
 
-### Mesh → PO (extern)
+### PO → Developer
 
-Über coord (`coord send <po-name> "Aufgabe: ..."`) oder direkt via tmux-send.
-Der PO ist der einzige externe Ansprechpartner.
+```bash
+# PO delegates via tmux (Developer session is always local)
+tmux send-keys -t <team>-developer "Implement X: <clear spec>" Enter
+```
+
+### Developer → PO (done signal)
+
+```bash
+# Write to a shared result file the PO monitors
+echo "DONE: X implemented, verified via Y" > ~/repos/<team>/.task-result
+# Or: PO polls / the Developer messages back via tmux
+tmux send-keys -t <team>-po "Done: X live and verified" Enter
+```
 
 ---
 
-## Konkrete Instanziierung: microcontroller-agent
+## Reference: microcontroller-agent
 
-Für den `microcontroller-agent` (Krisen-Radar + zukünftige Cortex-Terminals):
+```
+TEAM_NAME=microcontroller-agent
+MESH_ENABLED=true
 
-| Parameter | Wert |
-|---|---|
-| `PO_AGENT_NAME` | `microcontroller-agent` |
-| `CODING_AGENT_NAME` | `coding-agent` |
-| `PO_AGENT_MODEL` | `sonnet` |
-| `COORD_ENABLED` | `true` (nach coord-Eintrag) |
-| Domänen-Docs | ESPHome-Docs, Cortex-Terminal-Templates, CYD-Display-Guide, Vorbilder Terminal 1+2 |
+Sessions:
+  microcontroller-agent-po          ← entry point for embedded/display requests
+  microcontroller-agent-developer   ← ESPHome / LVGL implementer
 
-**Known-Pitfalls (aus dem gescheiterten Krisen-Radar-Versuch):**
-- Der Agent muss die CYD-Display-Rotation, Farb-Profile und Spiegel-Einstellungen kennen
-- Vorbilder (`cortex-terminal` Repo) LESEN bevor irgendwas gebaut wird
-- Das Template-Script zum Flashen und die Makefile-Targets existieren bereits — nicht neu erfinden
-- LVGL-Koordinatensystem-Orientierung ist nicht intuitiv: Docs zuerst
+Critical domain docs (docs/ must contain):
+  • ESPHome docs
+  • CYD display guide (rotation, mirror, color — READ THIS, it was the last failure point)
+  • LVGL coordinate system (non-intuitive orientation — always read before building)
+  • Cortex Terminal build scripts + Makefile targets
+  • Reference: ~/esp_repos/cortex-terminal/ (CortexTerminal 1 + 2 — working builds)
+```

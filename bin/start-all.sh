@@ -1,26 +1,26 @@
 #!/bin/bash
-# start-all.sh — Startet beide Sessions (PO-Agent + Coding-Agent) detached
+# start-all.sh — start both sessions (PO + Developer) detached
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(dirname "$SCRIPT_DIR")"
 
-if [ ! -f "$REPO/.env" ]; then
-  echo "FEHLER: $REPO/.env fehlt — 'cp .env.example .env' und ausfüllen." >&2
-  exit 1
-fi
-
-echo "Starte PO-Agent..."
-"$SCRIPT_DIR/po-agentctl" -r
-
-echo "Starte Coding-Agent..."
-"$SCRIPT_DIR/coding-agentctl" -r
-
+[ -f "$REPO/.env" ] || { echo "ERROR: $REPO/.env missing — cp .env.example .env" >&2; exit 1; }
 source "$REPO/.env"
-PO_NAME="${PO_AGENT_NAME:-po-agent}"
-CODING_NAME="${CODING_AGENT_NAME:-coding-agent}"
+
+TEAM="${TEAM_NAME:?TEAM_NAME missing in .env}"
+
+echo "Starting PO ($TEAM-po)..."
+"$SCRIPT_DIR/po-ctl" -r
+
+echo "Starting Developer ($TEAM-developer)..."
+"$SCRIPT_DIR/dev-ctl" -r
 
 echo ""
-echo "✅ Beide Sessions laufen:"
-echo "   tmux attach -t $PO_NAME          → PO-Agent"
-echo "   tmux attach -t $PO_NAME-$CODING_NAME  → Coding-Agent"
+echo "✅ Both sessions running:"
+echo "   tmux attach -t $TEAM-po          → Product Owner"
+echo "   tmux attach -t $TEAM-developer   → Developer"
+echo ""
+echo "Or use the installed commands:"
+echo "   $TEAM-po [-r]"
+echo "   $TEAM-developer [-r]"

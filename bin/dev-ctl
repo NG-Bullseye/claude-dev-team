@@ -1,0 +1,52 @@
+#!/bin/bash
+# dev-ctl — launcher for the Developer session (<TEAM_NAME>-developer)
+#
+#   dev-ctl          attach to running session, or cold-start (context preserved)
+#   dev-ctl  -r      fresh restart: kill session, new context
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(dirname "$SCRIPT_DIR")"
+
+[ -f "$REPO/.env" ] || { echo "ERROR: $REPO/.env missing — cp .env.example .env" >&2; exit 1; }
+# shellcheck source=/dev/null
+source "$REPO/.env"
+
+TEAM="${TEAM_NAME:?TEAM_NAME missing in .env}"
+SESSION="$TEAM-developer"
+MODEL="${DEVELOPER_MODEL:-sonnet}"
+DEV_REPO="$REPO/developer"
+SID_FILE="$HOME/.cache/$SESSION/launcher/$SESSION.sid"
+mkdir -p "$(dirname "$SID_FILE")"
+[ -f "$SID_FILE" ] || uuidgen > "$SID_FILE"
+
+MODEL_FLAG=""; [ -n "$MODEL" ] && MODEL_FLAG="--model $MODEL"
+INIT_PROMPT="Fresh restart (context cleared). Read your CLAUDE.md, then stay silent until the PO sends a task — no greeting output."
+
+start_fresh() {
+  local sid; sid="$(uuidgen)"; echo "$sid" > "$SID_FILE"
+  tmux new-session -d -s "$SESSION" -c "$DEV_REPO"
+  tmux send-keys -t "$SESSION" "claude $MODEL_FLAG --session-id $sid '$INIT_PROMPT'" Enter
+}
+
+case "${1:-}" in
+  -r|restart|--restart)
+    tmux kill-session -t "$SESSION" 2>/dev/null || true
+    start_fresh
+    echo "✅ $SESSION restarted."
+    exit 0 ;;
+  "") : ;;
+  *) echo "$SESSION: unknown action '${1}' (allowed: -r | restart)" >&2; exit 1 ;;
+esac
+
+SID="$(cat "$SID_FILE")"
+if [ -n "${TMUX:-}" ]; then
+  cd "$DEV_REPO" && exec bash -c "claude $MODEL_FLAG --resume $SID || claude $MODEL_FLAG --session-id $SID"
+fi
+if tmux has-session -t "$SESSION" 2>/dev/null; then
+  exec tmux attach-session -t "$SESSION"
+else
+  tmux new-session -d -s "$SESSION" -c "$DEV_REPO"
+  tmux send-keys -t "$SESSION" "claude $MODEL_FLAG --resume $SID || claude $MODEL_FLAG --session-id $SID" Enter
+  exec tmux attach-session -t "$SESSION"
+fi

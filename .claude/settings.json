@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$(dirname \"$(dirname \"${CLAUDE_PROJECT_DIR:-$PWD}\")\")/../bin/ensure-monitors.sh\" 2>/dev/null || bash ~/repos/agent-pair-template/bin/ensure-monitors.sh 2>/dev/null || true"
+            "command": "bash \"$(git -C \"${CLAUDE_PROJECT_DIR:-$PWD}\" rev-parse --show-toplevel 2>/dev/null)/bin/ensure-monitors.sh\" 2>/dev/null || true"
           }
         ]
       }

@@ -1,52 +1,70 @@
-# agent-pair-template
+# claude-dev-team
 
-Agnostisches Template für ein **zweiköpfiges Agent-Paar**: Domain-Spezialist PO-Agent (Mesh-Entry-Point) + nested Coding-Agent (Implementierer). Alle Konfigurationen in `.env`.
+A **Claude Code mini developer team** template: Product Owner + Developer, two persistent tmux sessions, zero API keys. Runs entirely on a Claude Code subscription.
 
-Composable mit **[agent-mesh](https://github.com/NG-Bullseye/agent-mesh)** (Transport-Layer) — `MESH_ENABLED=true` verbindet beide ohne Code-Änderung.
+Composable with **[agent-mesh](https://github.com/NG-Bullseye/agent-mesh)** — set `MESH_ENABLED=true` to connect the team to a Redis-backed inter-agent network. Works standalone without it.
 
-## Schnellstart (standalone)
+```
+[agent-mesh network]           [claude-dev-team]
+  other agents      ─────────►  <team>-po         (Product Owner)
+  agent-mesh CLI                └─ <team>-developer  (Developer)
+```
+
+## Quick start
 
 ```bash
 cp .env.example .env
-$EDITOR .env                    # PO_AGENT_NAME, DOMAIN_DOCS_PATH etc. setzen
-bash scripts/install.sh         # Symlinks einrichten
-bash bin/start-all.sh           # beide Sessions starten
+# Set TEAM_NAME (and optionally MESH_ENABLED) in .env
+bash scripts/install.sh         # creates ~/.local/bin/<team>-po and <team>-developer
+bash bin/start-all.sh           # starts both tmux sessions
 ```
 
-## Mit agent-mesh (empfohlen)
+Sessions:
+```
+<team>-po          → Product Owner  (domain specialist, mesh entry point)
+<team>-developer   → Developer      (implementer, subordinate to PO)
+```
+
+## With agent-mesh
 
 ```bash
-# 1. agent-mesh installieren + Redis starten
+# Install agent-mesh transport layer
 git clone https://github.com/NG-Bullseye/agent-mesh ~/repos/agent-mesh
 cd ~/repos/agent-mesh && pip install -e . && docker-compose up -d
 
-# 2. agent-pair-template konfigurieren
-cp .env.example .env
-# In .env setzen:
-#   MESH_ENABLED=true
-#   MESH_REDIS_URL=redis://localhost:6379/0
-bash scripts/install.sh && bash bin/start-all.sh
+# Enable in .env
+MESH_ENABLED=true
+MESH_REDIS_URL=redis://localhost:6379/0
 
-# Andere Agents können jetzt kommunizieren:
-agent-mesh send <po-name> "Aufgabe: ..."
+# Restart sessions
+bash bin/start-all.sh
+
+# Other agents can now reach your team
+agent-mesh send <team>-po "Build feature X"
 agent-mesh who
 ```
 
-## Architektur
+## Instantiate for a domain
 
-```
-[agent-mesh Transport]          [agent-pair-template Runtime]
- Redis Streams + MCP    ──────►  PO-Agent (<po-name>)
- agent-mesh send/listen          └─ Coding-Agent (<po-name>-coding-agent)
-```
-
-Details + vollständiges Diagramm: `docs/diagram.md` und `docs/implementation-plan.md`.
-
-## Instanziieren für eine konkrete Domäne
-
-1. `.env` befüllen (alle Slugs + `MESH_ENABLED`)
-2. `CLAUDE.md` + `coding-agent/CLAUDE.md` Platzhalter ersetzen
-3. Domänen-Docs in `docs/` einpflegen
+1. Fill in `.env` — set `TEAM_NAME`, models, `MESH_ENABLED`
+2. Replace `[TEAM_NAME]` / `[DOMAIN]` placeholders in `CLAUDE.md` and `developer/CLAUDE.md`
+3. Drop domain docs into `docs/` (templates, known pitfalls, examples)
 4. `bash scripts/install.sh && bash bin/start-all.sh`
 
-Referenz-Instanz: `microcontroller-agent` (ESPHome, Cortex-Terminals).
+Reference instance: `microcontroller-agent` (ESPHome / Cortex Terminals).
+
+## Architecture
+
+See `docs/diagram.md` for the full picture and `docs/implementation-plan.md` for step-by-step instantiation.
+
+## How it works
+
+- **No API key** — both agents run as `claude` CLI processes under a Claude Code subscription
+- **Persistent sessions** — SID-based resume survives restarts without losing context
+- **Idempotent monitors** — `flock`-based, safe to fire multiple times (UserPromptSubmit hook)
+- **Mesh-optional** — `MESH_ENABLED=false` runs fully offline; flip to `true` to join a network
+- **One .env** — all slugs, models, and URLs in one place; nothing hardcoded in scripts
+
+## License
+
+MIT
