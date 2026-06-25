@@ -1,0 +1,15 @@
+{
+  "permissions": { "defaultMode": "bypassPermissions" },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(dirname \"$(dirname \"${CLAUDE_PROJECT_DIR:-$PWD}\")\")/../bin/ensure-monitors.sh\" 2>/dev/null || bash ~/repos/agent-pair-template/bin/ensure-monitors.sh 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,57 @@
+#!/bin/bash
+# po-agentctl — Launcher für den PO-Agent (Domain Specialist, Mesh-Entry-Point)
+# Lädt Konfiguration aus .env im Repo-Root.
+#
+#   po-agentctl            attach an laufende Session, sonst Cold-Start (Kontext bleibt)
+#   po-agentctl  -r        Frischer Neustart: Session killen, neuer Kontext
+#   po-agentctl  restart   alias für -r
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(dirname "$SCRIPT_DIR")"
+
+# .env laden (Pflicht)
+if [ ! -f "$REPO/.env" ]; then
+  echo "FEHLER: $REPO/.env fehlt — 'cp .env.example .env' und ausfüllen." >&2
+  exit 1
+fi
+# shellcheck source=/dev/null
+source "$REPO/.env"
+
+NAME="${PO_AGENT_NAME:?PO_AGENT_NAME fehlt in .env}"
+MODEL="${PO_AGENT_MODEL:-sonnet}"
+SID_FILE="$HOME/.cache/$NAME/launcher/$NAME.sid"
+mkdir -p "$(dirname "$SID_FILE")"
+[ -f "$SID_FILE" ] || uuidgen > "$SID_FILE"
+
+MODEL_FLAG=""; [ -n "$MODEL" ] && MODEL_FLAG="--model $MODEL"
+
+INIT_PROMPT="Frischer Neustart deiner Session (Kontext zum Token-Sparen geleert). Lies deine CLAUDE.md, arme deine Monitore, dann still bis Aufgabe kommt — kein Begruessungs-Output."
+
+start_fresh() {
+  local sid; sid="$(uuidgen)"; echo "$sid" > "$SID_FILE"
+  tmux new-session -d -s "$NAME" -c "$REPO"
+  tmux send-keys -t "$NAME" "claude $MODEL_FLAG --session-id $sid '$INIT_PROMPT'" Enter
+}
+
+case "${1:-}" in
+  -r|restart|--restart)
+    tmux kill-session -t "$NAME" 2>/dev/null || true
+    start_fresh
+    echo "✅ $NAME frisch neugestartet."
+    exit 0 ;;
+  "") : ;;
+  *) echo "$NAME: unbekannte Aktion '${1}' (erlaubt: -r | restart)" >&2; exit 1 ;;
+esac
+
+SID="$(cat "$SID_FILE")"
+if [ -n "${TMUX:-}" ]; then
+  cd "$REPO" && exec bash -c "claude $MODEL_FLAG --resume $SID || claude $MODEL_FLAG --session-id $SID"
+fi
+if tmux has-session -t "$NAME" 2>/dev/null; then
+  exec tmux attach-session -t "$NAME"
+else
+  tmux new-session -d -s "$NAME" -c "$REPO"
+  tmux send-keys -t "$NAME" "claude $MODEL_FLAG --resume $SID || claude $MODEL_FLAG --session-id $SID" Enter
+  exec tmux attach-session -t "$NAME"
+fi
