@@ -2,7 +2,9 @@
 
 Agnostisches Template für ein **zweiköpfiges Agent-Paar**: Domain-Spezialist PO-Agent (Mesh-Entry-Point) + nested Coding-Agent (Implementierer). Alle Konfigurationen in `.env`.
 
-## Schnellstart
+Composable mit **[agent-mesh](https://github.com/NG-Bullseye/agent-mesh)** (Transport-Layer) — `MESH_ENABLED=true` verbindet beide ohne Code-Änderung.
+
+## Schnellstart (standalone)
 
 ```bash
 cp .env.example .env
@@ -11,22 +13,40 @@ bash scripts/install.sh         # Symlinks einrichten
 bash bin/start-all.sh           # beide Sessions starten
 ```
 
+## Mit agent-mesh (empfohlen)
+
+```bash
+# 1. agent-mesh installieren + Redis starten
+git clone https://github.com/NG-Bullseye/agent-mesh ~/repos/agent-mesh
+cd ~/repos/agent-mesh && pip install -e . && docker-compose up -d
+
+# 2. agent-pair-template konfigurieren
+cp .env.example .env
+# In .env setzen:
+#   MESH_ENABLED=true
+#   MESH_REDIS_URL=redis://localhost:6379/0
+bash scripts/install.sh && bash bin/start-all.sh
+
+# Andere Agents können jetzt kommunizieren:
+agent-mesh send <po-name> "Aufgabe: ..."
+agent-mesh who
+```
+
 ## Architektur
 
 ```
-Mesh → PO-Agent (<po-name>) → Coding-Agent (<po-name>-coding-agent)
+[agent-mesh Transport]          [agent-pair-template Runtime]
+ Redis Streams + MCP    ──────►  PO-Agent (<po-name>)
+ agent-mesh send/listen          └─ Coding-Agent (<po-name>-coding-agent)
 ```
 
-- **PO-Agent**: Domain-Spezialist, Mesh-Entry-Point, plant + delegiert
-- **Coding-Agent**: Implementierer, subordiniert, code + deploy + verify
-
-Details: `docs/diagram.md` und `docs/implementation-plan.md`.
+Details + vollständiges Diagramm: `docs/diagram.md` und `docs/implementation-plan.md`.
 
 ## Instanziieren für eine konkrete Domäne
 
-1. `.env` befüllen (alle Slugs)
-2. `CLAUDE.md` + `coding-agent/CLAUDE.md` mit echten Namen + Domänenbeschreibung befüllen
+1. `.env` befüllen (alle Slugs + `MESH_ENABLED`)
+2. `CLAUDE.md` + `coding-agent/CLAUDE.md` Platzhalter ersetzen
 3. Domänen-Docs in `docs/` einpflegen
-4. Bei coord-Mesh-Integration: `~/.local/bin/coord` editieren + `COORD_ENABLED=true`
+4. `bash scripts/install.sh && bash bin/start-all.sh`
 
 Referenz-Instanz: `microcontroller-agent` (ESPHome, Cortex-Terminals).

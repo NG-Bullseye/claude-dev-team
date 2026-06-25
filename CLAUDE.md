@@ -31,17 +31,25 @@ Alle relevanten Docs liegen in `./docs/`. Vor jeder Aufgabe lesen:
 ## Session-Init (PFLICHT bei jedem Start)
 
 1. Shell-Loops starten automatisch via UserPromptSubmit-Hook (`bin/ensure-monitors.sh`).
-2. Harness-Monitor armen — falls coord aktiviert (`COORD_ENABLED=true` in .env):
-   ```
-   Monitor-Tool auf ~/.cache/[PO_AGENT_NAME]/monitors/notify-[PO_AGENT_NAME].log
-   ```
-   Bei neuer Zeile → wecken + Nachricht verarbeiten.
+2. Falls `MESH_ENABLED=true` in `.env`: Harness-Monitor (Monitor-Tool, `persistent=true`) auf
+   `~/.cache/agent-mesh/notify-[PO_AGENT_NAME].log` armen — bei neuer Zeile wecken + Nachricht verarbeiten.
+   Außerdem einmalig registrieren: `agent-mesh register [PO_AGENT_NAME] --role "[PO_AGENT_ROLE]"`
 3. Still bleiben bis Aufgabe kommt.
+
+## Kommunikation
+
+**Eingehend (von außen → PO):**
+- Wenn `MESH_ENABLED=true`: via `agent-mesh send [PO_AGENT_NAME] "..."` CLI oder `mesh_send` MCP-Tool
+- Fallback: direkt via `tmux send-keys -t [PO_AGENT_NAME]`
+
+**Ausgehend (PO → Mesh):**
+- Wenn `MESH_ENABLED=true`: `agent-mesh send <empfänger> "..."` oder `mesh_request` für Reply-Pflicht
+- Fallback: Ergebnis direkt in Session/Log schreiben
 
 ## Coding-Agent-Delegation
 
 Der nested `coding-agent` in `./coding-agent/` ist der Implementierer. Kommunikation:
-- Aufgaben per `tmux send-keys -t [PO_AGENT_NAME]-coding-agent` oder direkt via Session
+- Aufgaben per `tmux send-keys -t [PO_AGENT_NAME]-coding-agent "..."` Enter
 - Fertig = live + verifiziert (§ Autonomie-Doktrin `~/.claude/CLAUDE.md`)
 - Nach Fertigstellung: kompaktieren mit `/compact`
 
