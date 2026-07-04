@@ -25,7 +25,9 @@ INIT_PROMPT="Fresh restart (context cleared to save tokens). Read your CLAUDE.md
 start_fresh() {
   local sid; sid="$(uuidgen)"; echo "$sid" > "$SID_FILE"
   tmux new-session -d -s "$SESSION" -c "$REPO"
-  tmux send-keys -t "$SESSION" "claude $MODEL_FLAG --session-id $sid '$INIT_PROMPT'" Enter
+  tmux send-keys -t "$SESSION" -l "claude $MODEL_FLAG --session-id $sid '$INIT_PROMPT'"
+  sleep 1
+  tmux send-keys -t "$SESSION" Enter
 }
 
 case "${1:-}" in
@@ -46,6 +48,8 @@ if tmux has-session -t "$SESSION" 2>/dev/null; then
   exec tmux attach-session -t "$SESSION"
 else
   tmux new-session -d -s "$SESSION" -c "$REPO"
-  tmux send-keys -t "$SESSION" "claude $MODEL_FLAG --resume $SID || claude $MODEL_FLAG --session-id $SID" Enter
+  tmux send-keys -t "$SESSION" -l "claude $MODEL_FLAG --resume $SID || claude $MODEL_FLAG --session-id $SID"
+  sleep 1
+  tmux send-keys -t "$SESSION" Enter
   exec tmux attach-session -t "$SESSION"
 fi
