@@ -53,7 +53,7 @@ The Developer lives in `./developer/`. Delegate via:
 ```bash
 tmux send-keys -t [TEAM_NAME]-developer "Implement X: <clear spec>" Enter
 ```
-Done = live + verified (Autonomy Doctrine `~/.claude/CLAUDE.md`).
+Done = live + verified (Autonomy Doctrine `~/cortex/CLAUDE.md` § Autonomie-Doktrin).
 After completion: compact with `/compact`.
 
 ## Task lifecycle
